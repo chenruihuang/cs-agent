@@ -1,5 +1,5 @@
 import json
-from rag_pipeline import retrieve, rerank, rag_query
+from rag_pipeline import retrieve, rerank, rag_query, rewrite_query
 
 def evaluate_retrieval(questions_path: str = "eval/questions.json"):
     """评估检索质量：答案是否在 Top-K 中（Hit Rate）"""
@@ -11,8 +11,9 @@ def evaluate_retrieval(questions_path: str = "eval/questions.json"):
     mrr = 0  # 平均倒数排名
     
     for q in questions:
-        docs = retrieve(q["question"], top_k=20)
-        top_docs = rerank(q["question"], docs, top_k=10)
+        rewritten = rewrite_query(q["question"])
+        docs = retrieve(rewritten, top_k=20)
+        top_docs = rerank(rewritten, docs, top_k=5)
         
         # 检查答案页码是否出现在检索结果中
         answer_pages = set(q["answer_page"])
@@ -45,8 +46,8 @@ def evaluate_answers(questions_path: str = "eval/questions.json"):
         answer = rag_query(q["question"], verbose=False)
         print(f"  系统回答：{answer}")
         # 这里可以人工打分，或用 LLM-as-judge 自动评估
-        input("  按回车继续下一题...")
+        # input("  按回车继续下一题...")
 
 if __name__ == "__main__":
-    # evaluate_retrieval()
-    evaluate_answers()  # 需要人工逐题看
+    evaluate_retrieval()
+    # evaluate_answers()  # 需要人工逐题看
