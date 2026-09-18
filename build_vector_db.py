@@ -81,9 +81,10 @@ if __name__ == "__main__":
     
     # 测试检索
     print("\n===== 检索测试 =====")
-    test_query = "债务人或者第三人有权处分的下列财产可以抵押"  # ← 改成你 PDF 里的真实问题
+    test_query = "什么情况下，担保物权消灭"  # ← 改成你 PDF 里的真实问题
     results = search(test_query, collection, top_k=5)
-    
+    print("\n===== 结果 =====")
+    print(f"\n {results} ")
     for i, r in enumerate(results, 1):
         print(f"\n[{i}] 第{r['page']}页 | 相似度 {r['score']:.4f}")
         print(r["text"][:150] + "...")
