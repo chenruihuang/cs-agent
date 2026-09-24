@@ -1,5 +1,6 @@
 import json
-from rag_pipeline import retrieve, rerank, rag_query, rewrite_query
+from rag_pipeline import retrieve, rerank, rag_query, rewrite_query, hybrid_search
+
 
 def evaluate_retrieval(questions_path: str = "eval/questions.json"):
     """评估检索质量：答案是否在 Top-K 中（Hit Rate）"""
@@ -14,6 +15,9 @@ def evaluate_retrieval(questions_path: str = "eval/questions.json"):
         rewritten = rewrite_query(q["question"])
         docs = retrieve(rewritten, top_k=20)
         top_docs = rerank(rewritten, docs, top_k=5)
+
+        # docs = retrieve(q["question"], top_k=20)
+        # top_docs = rerank(q["question"], docs, top_k=5)
         
         # 检查答案页码是否出现在检索结果中
         answer_pages = set(q["answer_page"])

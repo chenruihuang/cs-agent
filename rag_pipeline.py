@@ -1,10 +1,12 @@
 import json
 import os
 import chromadb
+import jieba
 from chromadb.utils import embedding_functions
 from sentence_transformers import CrossEncoder
 from dotenv import load_dotenv
 from openai import OpenAI
+from rank_bm25 import BM25Okapi
 
 load_dotenv()
 
@@ -14,6 +16,7 @@ COLLECTION_NAME = "rag_docs"
 TOP_K_RETRIEVE = 20   # 第一阶段：向量检索取 20 个
 TOP_K_RERANK = 5      # 第二阶段：Reranker 取前 5 个
 RERANKER_MODEL = "BAAI/bge-reranker-base"
+CHUNKS_PATH = "chunks/chunks.json"
 
 # ============ 初始化各组件 ============
 
@@ -37,6 +40,12 @@ llm = OpenAI(
     base_url=os.getenv("DEEPSEEK_BASE_URL"),
 )
 
+# 4. bm25索引
+with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+    chunks = json.load(f)
+corpus = [list(jieba.cut(c["text"])) for c in chunks]
+bm25 = BM25Okapi(corpus)
+
 # ============ RAG 核心流程 ============
 
 def retrieve(query: str, top_k: int = TOP_K_RETRIEVE) -> list[dict]:
@@ -54,6 +63,17 @@ def retrieve(query: str, top_k: int = TOP_K_RETRIEVE) -> list[dict]:
             "vector_score": 1 - dist,
         })
     return retrieved
+
+def hybrid_search(query, top_k=20):
+    """向量 Top20 ∪ BM25 Top20，返回去重结果"""
+    vec_docs = retrieve(query, top_k=top_k)
+    tokens = list(jieba.cut(query))
+    bm25_scores = bm25.get_scores(tokens)
+    top_idx = sorted(range(len(bm25_scores)), key=lambda i: -bm25_scores[i])[:top_k]
+    bm25_docs = [{"text": chunks[i]["text"], "page": chunks[i]["page"]} for i in top_idx]
+    # 合并去重（按 page+text 前30字）
+    merged = {d["text"][:30]: d for d in vec_docs + bm25_docs}
+    return list(merged.values())
 
 def rerank(query: str, docs: list[dict], top_k: int = TOP_K_RERANK) -> list[dict]:
     """第二阶段：Reranker 精排"""
@@ -118,13 +138,13 @@ def rag_query(query: str, verbose: bool = True) -> str:
         print(f"{'='*50}")
     
     # 第一步：向量检索
-    rewritten = rewrite_query(query)
-    docs = retrieve(rewritten)
+    # rewritten = rewrite_query(query)
+    docs = hybrid_search(query)
     if verbose:
         print(f"[向量检索] 召回 {len(docs)} 个候选块")
     
     # 第二步：Reranker 精排
-    top_docs = rerank(rewritten, docs)
+    top_docs = rerank(query, docs)
     if verbose:
         print(f"[Reranker] 精排后取 Top {len(top_docs)}：")
         for i, d in enumerate(top_docs, 1):
