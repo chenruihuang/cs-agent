@@ -1,0 +1,7 @@
+.env
+db/
+chunks/
+__pycache__/
+*.pyc
+.git/
+.gitignore
