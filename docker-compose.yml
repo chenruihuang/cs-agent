@@ -1,0 +1,53 @@
+services:
+  rag-api:                          # 服务名：容器内互相访问用这个名字
+    build: .                        # 从当前目录 Dockerfile 构建镜像
+    container_name: rag-api
+    ports:
+      - "8000:8000"                 # 宿主端口:容器端口
+    env_file:
+      - .env                        # 注入 .env（API Key 不进镜像）
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface  # 模型缓存复用
+    depends_on:
+      chromadb:
+        condition: service_healthy # 等 chromadb 健康后才启动
+    healthcheck:                    # 自己的健康检查
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s            # 给模型加载留时间
+    restart: unless-stopped
+  build-db:                          # 一次性建库（复用 rag-api 同一个镜像）
+    build: .
+    profiles: ["build"]          # 默认不随 up 启动
+    env_file: .env                   # CHROMA_HOST=chromadb 从这里来
+    volumes:
+      - ./data:/app/data             # ① 读 PDF
+      - rag_chunks:/app/chunks         # ② 存切分结果
+      - ~/.cache/huggingface:/root/.cache/huggingface   # ③ BGE 模型
+    depends_on:
+      chromadb:
+        condition: service_healthy   # 等 chromadb 就绪
+    command: ["sh", "-c", "python scripts/build_db.py"]
+  chromadb:
+    image: chromadb/chroma:latest   # 用现成镜像，不用 build
+    container_name: chromadb
+    ports:
+      - "9000:8000"                 # 避开 8000 冲突（API 已占用）
+    volumes:
+      - rag_db:/data   # 命名卷：向量数据持久化
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+volumes:
+  rag_db:
+    external: true
+  rag_chunks:
+    external: true

@@ -1,7 +1,13 @@
+# 密钥与版本库（最重要的两行）
 .env
-db/
-chunks/
+.git
+.gitignore
+
+# Python 缓存
 __pycache__/
 *.pyc
-.git/
-.gitignore
+
+# 运行数据 —— 都是挂载卷，不进镜像
+data/
+db/
+chunks/
