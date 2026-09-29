@@ -75,7 +75,7 @@ flowchart TD
 rag-project/
 ├── .env                        # API Key 配置（勿提交到 git）
 ├── data/
-│   └── your_doc.pdf            # 你的 100 页 PDF
+│   └── test.pdf            # 你的 知识文档 PDF
 ├── chunks/
 │   └── chunks.json             # 切分结果（含页码）
 ├── db/                         # ChromaDB 持久化目录（自动生成）
@@ -95,52 +95,24 @@ rag-project/
 - Python 3.10+（推荐 3.12）
 - 可联网（下载模型 + 调用 API）
 
-### 1. 安装依赖
+### 一键启动
+1. Copy-Item .env.example .env（填 DEEPSEEK_API_KEY）
+2. docker-compose up -d
+3. docker-compose run --rm build-db
 
-```bash
-pip install pymupdf chromadb sentence-transformers openai python-dotenv
-# 可选（后续优化用）：pip install rank-bm25 jieba
-```
+### 命令速查
+| 命令 | 作用 |
+| .\scripts\dev.ps1 up | 启动 |
+| .\scripts\dev.ps1 build | 重建+启动 |
+| .\scripts\dev.ps1 db | 建库 |
+| .\scripts\dev.ps1 eval | 评估 |
+| .\scripts\dev.ps1 logs | 看日志 |
 
-### 2. 配置 API Key
-
-创建 `.env` 文件：
-
-```env
-DEEPSEEK_API_KEY=你的key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
-```
-
-> 首次运行会自动下载 BGE 模型（约 100MB + Reranker 400MB），下载慢可设置镜像：`set HF_ENDPOINT=https://hf-mirror.com`
-
-### 3. 放入 PDF 并依次运行
-
-```bash
-# ① PDF 提取 + 切分（产出 chunks/chunks.json）
-python parse_and_chunk.py
-
-# ② 向量化入库 + 检索测试（产出 db/）
-python build_vector_db.py
-
-# ③ 启动交互问答（输入 q 退出）
-python rag_pipeline.py
-
-# ④ 跑评估（Hit@5 / Hit@10 / MRR）
-python evaluate.py
-```
-
-### 4. 交互问答示例
-
-```
-请输入问题（输入 q 退出）：房子已经抵押给银行，还能卖给其他人吗？
-
-[向量检索] 召回 20 个候选块
-[Reranker] 精排后取 Top 5：
-  1. 第59页 | rerank=0.660 | 第四百零六条 抵押期间，抵押人可以转让抵押财产...
-[回答]
-根据资料（第59页）：抵押期间，抵押人可以转让抵押财产，当事人另有约定的按照其约定；抵押财产转让的，抵押权不受影响。
-```
+### 服务地址
+- API: http://localhost:8000/docs
+- Chroma: http://localhost:9000
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/admin123)
 
 ## 评估结果
 

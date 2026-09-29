@@ -4,6 +4,10 @@ services:
     container_name: rag-api
     ports:
       - "8000:8000"                 # 宿主端口:容器端口
+    environment:
+      - HF_ENDPOINT=https://hf-mirror.com
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
     env_file:
       - .env                        # 注入 .env（API Key 不进镜像）
     volumes:
@@ -22,6 +26,10 @@ services:
     build: .
     profiles: ["build"]          # 默认不随 up 启动
     env_file: .env                   # CHROMA_HOST=chromadb 从这里来
+    environment:
+      - HF_ENDPOINT=https://hf-mirror.com
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
     volumes:
       - ./data:/app/data             # ① 读 PDF
       - rag_chunks:/app/chunks         # ② 存切分结果
@@ -29,7 +37,7 @@ services:
     depends_on:
       chromadb:
         condition: service_healthy   # 等 chromadb 就绪
-    command: ["sh", "-c", "python scripts/build_db.py"]
+    command: ["sh", "-c", "python -m scripts.build_db"]
   chromadb:
     image: chromadb/chroma:latest   # 用现成镜像，不用 build
     container_name: chromadb
@@ -46,8 +54,45 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+  eval:
+    build: .
+    profiles: ["eval"]
+    env_file: .env
+    volumes:
+      - ./eval:/app/eval
+      - ./eval_output:/app/eval_output
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    command: ["sh", "-c", "python -m scripts.evaluate"]
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ["9090:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on: [rag-api]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      retries: 3
+    restart: unless-stopped
+  
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3000:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on: [prometheus]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   rag_db:
-    external: true
   rag_chunks:
-    external: true
+  grafana_data:

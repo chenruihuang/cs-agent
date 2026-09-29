@@ -1,8 +1,11 @@
-from openai import OpenAI
+from openai import OpenAI,AsyncOpenAI
 from app.core.config import settings
 
-_client = OpenAI(api_key=settings.deepseek_api_key,
+_client = OpenAI(api_key=settings.deepseek_api_key.get_secret_value(),
                  base_url=settings.deepseek_base_url)
+
+_async_client = AsyncOpenAI(api_key=settings.deepseek_api_key.get_secret_value(),
+                            base_url=settings.deepseek_base_url)
 
 SYSTEM_PROMPT = """你是一个严谨的文档问答助手。
 规则：
@@ -28,6 +31,33 @@ def generate(question: str, docs: list[dict]) -> str:
         temperature=0.1,
     )
     return resp.choices[0].message.content
+
+def generate_stream(question: str, docs: list[dict]):
+    """流式生成：返回 stream 迭代器，逐块产出增量（新增）"""
+    context = "\n\n".join(f"[第{d['page']}页] {d['text']}" for d in docs)
+    return _client.chat.completions.create(
+        model=settings.deepseek_model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"问题：{question}\n\n资料：\n{context}"},
+        ],
+        temperature=0.1,
+        stream=True,                    # ← 唯一的区别
+    )
+
+async def generate_stream_async(question: str, docs: list[dict]):
+    context = "\n\n".join(f"[第{d['page']}页] {d['text']}" for d in docs)
+    stream = await _async_client.chat.completions.create(
+        model=settings.deepseek_model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"问题：{question}\n\n资料：\n{context}"},
+        ],
+        temperature=0.1,
+        stream=True,
+    )
+    async for chunk in stream:      # ← async 迭代，不阻塞事件循环
+        yield chunk
 
 def rewrite_query(query: str) -> str:
     resp = _client.chat.completions.create(

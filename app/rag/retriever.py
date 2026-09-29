@@ -6,6 +6,7 @@ import chromadb
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from app.core.config import settings
 
+DB_PATH = "db"
 COLLECTION_NAME = "rag_docs"
 TOP_K_RETRIEVE = 20   # 第一阶段：向量检索取 20 个
 
@@ -15,6 +16,7 @@ _collection = None
 def get_collection():
     global _client, _collection
     if _collection is None:
+        # _client = chromadb.PersistentClient(path=DB_PATH)
         _client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
         _collection = _client.get_collection(COLLECTION_NAME,
             embedding_function=SentenceTransformerEmbeddingFunction(
